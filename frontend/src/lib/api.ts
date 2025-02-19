@@ -1,15 +1,26 @@
 import { SupabaseCredentials, ComplianceReport, MFAStatus, RLSStatus, PITRStatus, FixOptions } from '@/types';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+const API_BASE_URL = 'http://localhost:3001/api';
 
 export class APIService {
   private static credentials: SupabaseCredentials | null = null;
 
   static setCredentials(creds: SupabaseCredentials): void {
+    console.log('Setting credentials:', creds);
     this.credentials = creds;
   }
 
+  private static getHeaders(): HeadersInit {
+    const headers = {
+      'Content-Type': 'application/json',
+      'Authorization': this.credentials ? `Bearer ${this.credentials.serviceKey}` : '',
+    };
+    console.log('Generated headers:', headers);
+    return headers;
+  }
+
   static async verifyCredentials(credentials: SupabaseCredentials): Promise<boolean> {
+    console.log('Verifying credentials:', credentials, 'to ', `${API_BASE_URL}/compliance/credentials`);
     try {
       const response = await fetch(`${API_BASE_URL}/compliance/credentials`, {
         method: 'POST',
@@ -17,6 +28,8 @@ export class APIService {
         body: JSON.stringify(credentials),
       });
 
+      console.log('Response status for verifyCredentials:', response.status);
+      console.log('Response body for verifyCredentials:', await response.json());
       if (!response.ok) throw new Error('Invalid credentials');
 
       this.setCredentials(credentials);
@@ -28,35 +41,54 @@ export class APIService {
   }
 
   static async getComplianceReport(): Promise<ComplianceReport> {
-    const response = await fetch(`${API_BASE_URL}/compliance/report`);
+    console.log('Fetching compliance report');
+    const response = await fetch(`${API_BASE_URL}/compliance/report`, {
+      headers: this.getHeaders(),
+    });
+    console.log('Response status for getComplianceReport:', response.status);
     if (!response.ok) throw new Error('Failed to fetch compliance report');
     return response.json();
   }
 
   static async checkMFA(): Promise<MFAStatus> {
-    const response = await fetch(`${API_BASE_URL}/compliance/check/mfa`);
+    console.log('Checking MFA status');
+    const response = await fetch(`${API_BASE_URL}/compliance/check/mfa`, {
+      headers: this.getHeaders(),
+    });
+    console.log('Response status for checkMFA:', response.status);
     if (!response.ok) throw new Error('Failed to check MFA status');
     return response.json();
   }
 
   static async checkRLS(): Promise<RLSStatus> {
-    const response = await fetch(`${API_BASE_URL}/compliance/check/rls`);
+    console.log('Checking RLS status');
+    const response = await fetch(`${API_BASE_URL}/compliance/check/rls`, {
+      headers: this.getHeaders(),
+    });
+    console.log('Response status for checkRLS:', response.status);
     if (!response.ok) throw new Error('Failed to check RLS status');
     return response.json();
   }
 
   static async checkPITR(): Promise<PITRStatus> {
-    const response = await fetch(`${API_BASE_URL}/compliance/check/pitr`);
+    console.log('Checking PITR status');
+    const response = await fetch(`${API_BASE_URL}/compliance/check/pitr`, {
+      headers: this.getHeaders(),
+    });
+    console.log('Response status for checkPITR:', response.status);
     if (!response.ok) throw new Error('Failed to check PITR status');
     return response.json();
   }
 
   static async fixIssues(options: FixOptions): Promise<{ message: string; results: Record<string, boolean> }> {
+    console.log('Fixing issues with options:', options);
     const response = await fetch(`${API_BASE_URL}/compliance/fix`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: this.getHeaders(),
       body: JSON.stringify(options),
     });
+
+    console.log('Response status for fixIssues:', response.status);
 
     if (!response.ok) throw new Error('Failed to fix compliance issues');
     return response.json();

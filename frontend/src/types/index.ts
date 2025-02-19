@@ -9,27 +9,30 @@ export interface ComplianceStatus {
   timestamp: string;
 }
 
-export interface MFAStatus extends ComplianceStatus {
-  users: {
+export interface MFAStatus {
+  status: 'pass' | 'fail';
+  details: string;
+  users: Array<{
     id: string;
     email: string;
     hasMFA: boolean;
-  }[];
+  }>;
 }
 
-export interface RLSStatus extends ComplianceStatus {
-  tables: {
+export interface RLSStatus {
+  compliant: boolean;
+  tables: Array<{
     name: string;
     hasRLS: boolean;
-  }[];
+    policies: string[];
+  }>;
 }
 
-export interface PITRStatus extends ComplianceStatus {
-  projects: {
-    id: string;
-    name: string;
-    hasPITR: boolean;
-  }[];
+export interface PITRStatus {
+  enabled: boolean;
+  retentionPeriod?: string;
+  lastBackup?: string;
+  storageUsed?: string;
 }
 
 export interface ComplianceReport {
@@ -50,4 +53,9 @@ export interface SidebarItem {
   title: string;
   href: string;
   icon: React.ComponentType<{ className?: string }>;
+}
+
+export interface Credentials {
+  url: string;
+  key: string;
 } 

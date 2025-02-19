@@ -1,11 +1,13 @@
 "use client"
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
+import { APIService } from '@/lib/api';
+import { SupabaseCredentials } from '@/types';
 
 interface AuthContextType {
   isAuthenticated: boolean;
-  login: (token: string) => void;
+  login: (credentials: SupabaseCredentials) => Promise<boolean>;
   logout: () => void;
 }
 
@@ -14,24 +16,39 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (token) {
+    const credentials = localStorage.getItem('credentials');
+    if (credentials) {
+      APIService.setCredentials(JSON.parse(credentials));
       setIsAuthenticated(true);
-    } else {
+      if (pathname === '/login') {
+        router.push('/dashboard');
+      }
+    } else if (pathname !== '/login') {
       router.push('/login');
     }
-  }, [router]);
+  }, [router, pathname]);
 
-  const login = (token: string) => {
-    localStorage.setItem('token', token);
-    setIsAuthenticated(true);
-    router.push('/');
+  const login = async (credentials: SupabaseCredentials): Promise<boolean> => {
+    try {
+      const success = await APIService.verifyCredentials(credentials);
+      if (success) {
+        localStorage.setItem('credentials', JSON.stringify(credentials));
+        setIsAuthenticated(true);
+        router.push('/dashboard');
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error('Login error:', error);
+      return false;
+    }
   };
 
   const logout = () => {
-    localStorage.removeItem('token');
+    localStorage.removeItem('credentials');
     setIsAuthenticated(false);
     router.push('/login');
   };
