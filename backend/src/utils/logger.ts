@@ -52,6 +52,9 @@ if (process.env.NODE_ENV !== 'production') {
 
 // Create log categories
 export const complianceLogger = {
+  info: (message: string, meta?: any) => {
+    logger.info(message, { category: 'general', ...meta });
+  },
   mfa: (message: string, meta?: any) => {
     logger.info(message, { category: 'mfa', ...meta });
   },

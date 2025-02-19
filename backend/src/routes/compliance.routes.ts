@@ -2,9 +2,11 @@ import { Router } from 'express';
 import { ComplianceController } from '../controllers/compliance.controller';
 import { validateCredentials } from '../middleware/validation.middleware';
 import { authenticate } from '../middleware/auth.middleware';
+import { AIService } from '../services/ai/ai.service';
 
 const router = Router();
 const complianceController = new ComplianceController();
+const aiService = new AIService();
 
 /**
  * @route   POST /api/compliance/credentials
@@ -100,5 +102,53 @@ router.post('/fix/rls/:projectRef', authenticate, complianceController.enableRLS
  * @access  Private
  */
 router.post('/fix/pitr/:projectRef', authenticate, complianceController.enablePITR.bind(complianceController));
+
+/**
+ * @route   POST /api/compliance/ai/assist
+ * @desc    Get AI assistance for compliance queries
+ * @access  Private
+ */
+router.post('/ai/assist', authenticate, async (req, res) => {
+  try {
+    const { query } = req.body;
+    const context = {
+      mfa: await req.supabaseService?.checkMFA(),
+      rls: await req.supabaseService?.checkRLS(),
+      pitr: await req.supabaseService?.checkPITR()
+    };
+    
+    const assistance = await aiService.getComplianceAssistance(query, context);
+    res.json(assistance);
+  } catch (error) {
+    res.status(500).json({
+      error: 'Failed to get AI assistance',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * @route   POST /api/compliance/ai/suggest
+ * @desc    Get AI suggestions for configuration
+ * @access  Private
+ */
+router.post('/ai/suggest', authenticate, async (req, res) => {
+  try {
+    const { query } = req.body;
+    const currentConfig = {
+      mfa: await req.supabaseService?.checkMFA(),
+      rls: await req.supabaseService?.checkRLS(),
+      pitr: await req.supabaseService?.checkPITR()
+    };
+    
+    const suggestions = await aiService.getSuggestions(query, currentConfig);
+    res.json(suggestions);
+  } catch (error) {
+    res.status(500).json({
+      error: 'Failed to get AI suggestions',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
 
 export default router;

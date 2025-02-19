@@ -191,23 +191,40 @@ export class APIService {
     }
   }
 
-  static async setManagementApiKey(key: string): Promise<void> {
-    const response = await fetch(`${API_BASE_URL}/compliance/management-key`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${this.credentials?.serviceKey || ''}`,
-      },
-      body: JSON.stringify({ managementApiKey: key }),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || 'Failed to set management API key');
+  static initializeFromLocalStorage(): void {
+    const managementKey = localStorage.getItem('managementApiKey');
+    if (managementKey) {
+      this.setManagementConfig({ managementApiKey: managementKey, projectRef: '' });
+      // Automatically sync with backend
+      this.setManagementApiKey(managementKey).catch(console.error);
     }
+  }
 
-    // Update local management config
-    this.setManagementConfig({ managementApiKey: key, projectRef: '' });
+  static hasManagementKey(): boolean {
+    return Boolean(this.managementConfig?.managementApiKey);
+  }
+
+  static async setManagementApiKey(key: string): Promise<void> {
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/compliance/management-key`, {
+        method: 'POST',
+        headers: {
+          ...this.getHeaders(),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ key }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to set management API key');
+      }
+
+      this.setManagementConfig({ managementApiKey: key, projectRef: '' });
+      localStorage.setItem('managementApiKey', key);
+    } catch (error) {
+      console.error('Error setting management API key:', error);
+      throw error;
+    }
   }
 
   static async listProjects(): Promise<any[]> {
@@ -260,6 +277,36 @@ export class APIService {
 
     if (!response.ok) {
       throw new Error('Failed to deploy function');
+    }
+
+    return response.json();
+  }
+
+  static async getAIAssistance(query: string): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/compliance/ai/assist`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ query })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.details || errorData.error || 'Failed to get AI assistance');
+    }
+
+    return response.json();
+  }
+
+  static async getAISuggestions(query: string): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/compliance/ai/suggest`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ query })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.details || errorData.error || 'Failed to get AI suggestions');
     }
 
     return response.json();

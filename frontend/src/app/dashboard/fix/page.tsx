@@ -199,73 +199,66 @@ const complianceOptions = [
 ];
 
 export default function FixPage() {
+  const [loading, setLoading] = useState(true);
+  const [projects, setProjects] = useState<any[]>([]);
+  const [selectedProject, setSelectedProject] = useState<string>('');
+  const [showKeyInput, setShowKeyInput] = useState(false);
+  const [managementKey, setManagementKey] = useState('');
+  const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
+  const [progress, setProgress] = useState<Record<string, any>>({});
   const { toast } = useToast();
-  const [loading, setLoading] = useState(false);
-  const [projects, setProjects] = useState<Array<{ id: string; name: string }>>([]);
-  const [selectedProjects, setSelectedProjects] = useState<Record<string, boolean>>({});
-  const [managementApiKey, setManagementApiKey] = useState('');
-  const [selectedOptions, setSelectedOptions] = useState<Record<string, boolean>>({});
-  const [progress, setProgress] = useState<Record<string, { current: number; status: string }>>({});
 
   useEffect(() => {
+    // Initialize API service with localStorage data
+    APIService.initializeFromLocalStorage();
     fetchProjects();
-    // Initialize selected options
-    const initialOptions = complianceOptions.reduce((acc, option) => {
-      acc[option.id] = false;
-      return acc;
-    }, {} as Record<string, boolean>);
-    setSelectedOptions(initialOptions);
+  }, []);
+
+  useEffect(() => {
+    // Only show key input if no management key is present
+    setShowKeyInput(!APIService.hasManagementKey());
   }, []);
 
   const fetchProjects = async () => {
     try {
-      const projectList = await APIService.listProjects();
-      setProjects(projectList);
-      const initialSelectedState = projectList.reduce((acc, project) => {
-        acc[project.id] = false;
-        return acc;
-      }, {} as Record<string, boolean>);
-      setSelectedProjects(initialSelectedState);
+      const data = await APIService.listProjects();
+      setProjects(data);
     } catch (error) {
-      console.error('Error fetching projects:', error);
+      console.error('Failed to fetch projects:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSubmitManagementKey = async () => {
+    try {
+      await APIService.setManagementApiKey(managementKey);
+      setShowKeyInput(false);
+      // Refresh projects after setting the key
+      await fetchProjects();
+      toast({
+        title: 'Success',
+        description: 'Management API key has been set successfully',
+      });
+    } catch (error) {
       toast({
         variant: 'destructive',
         title: 'Error',
-        description: error instanceof Error ? error.message : 'Failed to fetch projects',
+        description: 'Failed to set management API key',
       });
     }
   };
 
   const handleProjectSelect = (projectId: string) => {
-    setSelectedProjects(prev => ({
-      ...prev,
-      [projectId]: !prev[projectId]
-    }));
-  };
-
-  const handleManagementApiKeyChange = async (key: string) => {
-    setManagementApiKey(key);
-    try {
-      await APIService.setManagementApiKey(key);
-      toast({
-        title: 'Success',
-        description: 'Management API key set successfully',
-      });
-      fetchProjects(); // Refresh projects list after setting the key
-    } catch (error) {
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: 'Failed to set Management API key',
-      });
-    }
+    setSelectedProject(projectId);
   };
 
   const handleOptionSelect = (optionId: string) => {
-    setSelectedOptions(prev => ({
-      ...prev,
-      [optionId]: !prev[optionId]
-    }));
+    if (selectedOptions.includes(optionId)) {
+      setSelectedOptions(prev => prev.filter(id => id !== optionId));
+    } else {
+      setSelectedOptions(prev => [...prev, optionId]);
+    }
   };
 
   const updateProgress = (projectId: string, optionId: string, step: number, status: string) => {
@@ -277,24 +270,16 @@ export default function FixPage() {
   };
 
   const handleFix = async () => {
-    const selectedProjectIds = Object.entries(selectedProjects)
-      .filter(([_, selected]) => selected)
-      .map(([id]) => id);
-
-    if (selectedProjectIds.length === 0) {
+    if (selectedProject === '') {
       toast({
         variant: 'destructive',
-        title: 'No projects selected',
-        description: 'Please select at least one project to apply fixes to',
+        title: 'No project selected',
+        description: 'Please select a project to apply fixes to',
       });
       return;
     }
 
-    const selectedOptionIds = Object.entries(selectedOptions)
-      .filter(([_, selected]) => selected)
-      .map(([id]) => id);
-
-    if (selectedOptionIds.length === 0) {
+    if (selectedOptions.length === 0) {
       toast({
         variant: 'destructive',
         title: 'No options selected',
@@ -305,55 +290,50 @@ export default function FixPage() {
 
     setLoading(true);
     try {
-      for (const projectId of selectedProjectIds) {
-        const project = projects.find(p => p.id === projectId);
-        if (!project) continue;
+      for (const optionId of selectedOptions) {
+        const option = complianceOptions.find(o => o.id === optionId);
+        if (!option) continue;
 
-        for (const optionId of selectedOptionIds) {
-          const option = complianceOptions.find(o => o.id === optionId);
-          if (!option) continue;
+        // Reset progress for this project-option combination
+        const progressKey = `${selectedProject}-${optionId}`;
+        setProgress(prev => ({
+          ...prev,
+          [progressKey]: { current: 0, status: 'Starting...' }
+        }));
 
-          // Reset progress for this project-option combination
-          const progressKey = `${projectId}-${optionId}`;
-          setProgress(prev => ({
-            ...prev,
-            [progressKey]: { current: 0, status: 'Starting...' }
-          }));
+        try {
+          // Execute the appropriate fix based on the option
+          switch (optionId) {
+            case 'mfa':
+              updateProgress(selectedProject, optionId, 25, 'Creating MFA function...');
+              await APIService.enableMFA(selectedProject);
+              updateProgress(selectedProject, optionId, 100, 'MFA enabled');
+              break;
 
-          try {
-            // Execute the appropriate fix based on the option
-            switch (optionId) {
-              case 'mfa':
-                updateProgress(projectId, optionId, 25, 'Creating MFA function...');
-                await APIService.enableMFA(project.id);
-                updateProgress(projectId, optionId, 100, 'MFA enabled');
-                break;
+            case 'rls':
+              updateProgress(selectedProject, optionId, 25, 'Creating RLS helper functions...');
+              await APIService.enableRLS(selectedProject);
+              updateProgress(selectedProject, optionId, 100, 'RLS enabled for all tables');
+              break;
 
-              case 'rls':
-                updateProgress(projectId, optionId, 25, 'Creating RLS helper functions...');
-                await APIService.enableRLS(project.id);
-                updateProgress(projectId, optionId, 100, 'RLS enabled for all tables');
-                break;
-
-              case 'pitr':
-                updateProgress(projectId, optionId, 25, 'Enabling PITR...');
-                await APIService.enablePITR(project.id);
-                updateProgress(projectId, optionId, 100, 'PITR enabled');
-                break;
-            }
-
-            toast({
-              title: 'Fix Applied',
-              description: `${option.title} has been enabled for ${project.name}`,
-            });
-          } catch (error) {
-            updateProgress(projectId, optionId, 0, 'Failed');
-            toast({
-              variant: 'destructive',
-              title: 'Error',
-              description: `Failed to apply ${option.title} to ${project.name}: ${error instanceof Error ? error.message : 'Unknown error'}`,
-            });
+            case 'pitr':
+              updateProgress(selectedProject, optionId, 25, 'Enabling PITR...');
+              await APIService.enablePITR(selectedProject);
+              updateProgress(selectedProject, optionId, 100, 'PITR enabled');
+              break;
           }
+
+          toast({
+            title: 'Fix Applied',
+            description: `${option.title} has been enabled for ${selectedProject}`,
+          });
+        } catch (error) {
+          updateProgress(selectedProject, optionId, 0, 'Failed');
+          toast({
+            variant: 'destructive',
+            title: 'Error',
+            description: `Failed to apply ${option.title} to ${selectedProject}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          });
         }
       }
     } catch (error) {
@@ -371,22 +351,27 @@ export default function FixPage() {
     <div className="flex-1 space-y-4 p-8 pt-6">
       <h2 className="text-3xl font-bold tracking-tight">Fix Compliance Issues</h2>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Management API Key</CardTitle>
-          <CardDescription>Enter your Supabase Management API key to proceed</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <Input
-              type="password"
-              placeholder="Enter Management API Key"
-              value={managementApiKey}
-              onChange={(e) => handleManagementApiKeyChange(e.target.value)}
-            />
-          </div>
-        </CardContent>
-      </Card>
+      {showKeyInput && (
+        <Card className="mb-4">
+          <CardHeader>
+            <CardTitle>Management API Key Required</CardTitle>
+            <CardDescription>
+              Please provide your Supabase Management API key to fix compliance issues
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex gap-4">
+              <Input
+                type="password"
+                placeholder="Enter Management API Key"
+                value={managementKey}
+                onChange={(e) => setManagementKey(e.target.value)}
+              />
+              <Button onClick={handleSubmitManagementKey}>Save Key</Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
@@ -399,7 +384,7 @@ export default function FixPage() {
               <div key={project.id} className="flex items-center space-x-2">
                 <Checkbox
                   id={project.id}
-                  checked={selectedProjects[project.id]}
+                  checked={selectedProject === project.id}
                   onCheckedChange={() => handleProjectSelect(project.id)}
                 />
                 <label htmlFor={project.id} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
@@ -423,7 +408,7 @@ export default function FixPage() {
                 <div className="flex items-center space-x-2">
                   <Checkbox
                     id={option.id}
-                    checked={selectedOptions[option.id]}
+                    checked={selectedOptions.includes(option.id)}
                     onCheckedChange={() => handleOptionSelect(option.id)}
                   />
                   <div className="flex items-center space-x-2">
@@ -435,19 +420,16 @@ export default function FixPage() {
                 </div>
                 <p className="text-sm text-muted-foreground pl-6">{option.description}</p>
                 
-                {Object.entries(selectedProjects)
-                  .filter(([_, selected]) => selected)
-                  .map(([projectId]) => {
-                    const project = projects.find(p => p.id === projectId);
-                    if (!project) return null;
-                    
-                    const progressKey = `${projectId}-${option.id}`;
+                {Object.entries(projects)
+                  .filter(([_, project]) => project.id === selectedProject)
+                  .map(([_, project]) => {
+                    const progressKey = `${project.id}-${option.id}`;
                     const progressData = progress[progressKey];
                     
                     if (!progressData) return null;
                     
                     return (
-                      <div key={`${option.id}-${projectId}`} className="pl-6 space-y-2">
+                      <div key={`${option.id}-${project.id}`} className="pl-6 space-y-2">
                         <div className="flex justify-between text-sm">
                           <span>{project.name}</span>
                           <span>{progressData.status}</span>
@@ -460,9 +442,7 @@ export default function FixPage() {
             ))}
             <Button
               onClick={handleFix}
-              disabled={loading || !managementApiKey || 
-                Object.values(selectedProjects).every(v => !v) ||
-                Object.values(selectedOptions).every(v => !v)}
+              disabled={loading || !selectedProject || selectedOptions.length === 0}
               className="mt-4"
             >
               {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
