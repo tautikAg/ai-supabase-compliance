@@ -24,15 +24,19 @@ export interface RLSStatus {
   tables: Array<{
     name: string;
     hasRLS: boolean;
-    policies: string[];
+    policies?: string[];
   }>;
 }
 
 export interface PITRStatus {
-  enabled: boolean;
-  retentionPeriod?: string;
-  lastBackup?: string;
-  storageUsed?: string;
+  status: 'pass' | 'fail';
+  details: string;
+  projects: Array<{
+    id: string;
+    name: string;
+    hasPITR: boolean;
+  }>;
+  timestamp: string;
 }
 
 export interface ComplianceReport {

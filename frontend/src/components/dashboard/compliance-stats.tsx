@@ -31,10 +31,10 @@ export function ComplianceStats() {
     },
     {
       title: 'RLS Status',
-      value: report?.rls.status === 'pass' ? 'Compliant' : 'Non-Compliant',
+      value: report?.rls.compliant ? 'Compliant' : 'Non-Compliant',
       icon: Shield,
-      description: report?.rls.details || 'Loading...',
-      className: report?.rls.status === 'pass' ? 'text-green-500' : 'text-red-500',
+      description: report?.rls.compliant ? 'Compliant' : 'Non-Compliant',
+      className: report?.rls.compliant ? 'text-green-500' : 'text-red-500',
     },
     {
       title: 'PITR Status',

@@ -60,44 +60,43 @@ export default function PITRPage() {
       <Card>
         <CardHeader>
           <CardTitle>Point in Time Recovery Status</CardTitle>
-          <CardDescription>Current PITR configuration for your Supabase project</CardDescription>
+          <CardDescription>PITR configuration across your Supabase projects</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
             <div className="flex items-center space-x-4">
-              <Badge variant={status.enabled ? 'success' : 'destructive'}>
-                {status.enabled ? 'ENABLED' : 'DISABLED'}
+              <Badge variant={status.status === 'pass' ? 'success' : 'destructive'}>
+                {status.status.toUpperCase()}
               </Badge>
               <span className="text-sm text-muted-foreground">
-                {status.enabled 
-                  ? `PITR is enabled with ${status.retentionPeriod} retention period` 
-                  : 'PITR is not enabled for this project'}
+                {status.details}
               </span>
             </div>
-            {status.enabled && (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Setting</TableHead>
-                    <TableHead>Value</TableHead>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Project Name</TableHead>
+                  <TableHead>PITR Status</TableHead>
+                  <TableHead>Project ID</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {status.projects.map((project) => (
+                  <TableRow key={project.id}>
+                    <TableCell>{project.name}</TableCell>
+                    <TableCell>
+                      <Badge variant={project.hasPITR ? 'success' : 'destructive'}>
+                        {project.hasPITR ? 'ENABLED' : 'DISABLED'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="font-mono text-sm">{project.id}</TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  <TableRow>
-                    <TableCell>Retention Period</TableCell>
-                    <TableCell>{status.retentionPeriod}</TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell>Last Backup</TableCell>
-                    <TableCell>{status.lastBackup}</TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell>Storage Used</TableCell>
-                    <TableCell>{status.storageUsed}</TableCell>
-                  </TableRow>
-                </TableBody>
-              </Table>
-            )}
+                ))}
+              </TableBody>
+            </Table>
+            <div className="text-sm text-muted-foreground mt-4">
+              Last checked: {new Date(status.timestamp).toLocaleString()}
+            </div>
           </div>
         </CardContent>
       </Card>

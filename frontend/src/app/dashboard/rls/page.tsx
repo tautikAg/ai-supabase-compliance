@@ -92,7 +92,7 @@ export default function RLSPage() {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      {table.policies.length > 0 ? (
+                      {table.policies && table.policies.length > 0 ? (
                         <ul className="list-disc list-inside">
                           {table.policies.map((policy, index) => (
                             <li key={index} className="text-sm">

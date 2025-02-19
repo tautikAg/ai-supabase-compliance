@@ -97,11 +97,11 @@ export function ComplianceOverview({ className }: ComplianceOverviewProps) {
             <TableRow>
               <TableCell className="font-medium">RLS</TableCell>
               <TableCell>
-                <Badge variant={report.rls.status === 'pass' ? 'success' : 'destructive'}>
-                  {report.rls.status.toUpperCase()}
+                <Badge variant={report.rls.compliant ? 'success' : 'destructive'}>
+                  {report.rls.compliant ? 'Compliant' : 'Non-Compliant'}
                 </Badge>
               </TableCell>
-              <TableCell>{report.rls.details}</TableCell>
+              <TableCell>{report.rls.compliant ? 'Compliant' : 'Non-Compliant'}</TableCell>
               <TableCell>{new Date(report.rls.timestamp).toLocaleString()}</TableCell>
             </TableRow>
             <TableRow>

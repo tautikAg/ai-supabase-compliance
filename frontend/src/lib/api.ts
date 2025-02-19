@@ -75,9 +75,13 @@ export class APIService {
     const response = await fetch(`${API_BASE_URL}/compliance/check/pitr`, {
       headers: this.getHeaders(),
     });
-    console.log('Response status for checkPITR:', response.status);
+    console.log('Response status for checkPITR in the api:', response.status);
+    
     if (!response.ok) throw new Error('Failed to check PITR status');
-    return response.json();
+    
+    const data = await response.json();
+    console.log('Response body for checkPITR in the api:', data);
+    return data;
   }
 
   static async fixIssues(options: FixOptions): Promise<{ message: string; results: Record<string, boolean> }> {
