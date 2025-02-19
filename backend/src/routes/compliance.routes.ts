@@ -52,4 +52,53 @@ router.get('/check/pitr', authenticate, complianceController.checkPITR.bind(comp
  */
 router.post('/fix', authenticate, complianceController.fixIssues.bind(complianceController));
 
+/**
+ * @route   POST /api/compliance/management-key
+ * @desc    Set Supabase Management API key
+ * @access  Private
+ */
+router.post('/management-key', authenticate, complianceController.setManagementApiKey.bind(complianceController));
+
+/**
+ * @route   GET /api/compliance/projects
+ * @desc    List Supabase projects
+ * @access  Private
+ */
+router.get('/projects', authenticate, complianceController.listProjects.bind(complianceController));
+
+/**
+ * @route   GET /api/compliance/projects/:projectRef/functions
+ * @desc    List functions for a project
+ * @access  Private
+ */
+router.get('/projects/:projectRef/functions', authenticate, complianceController.listFunctions.bind(complianceController));
+
+/**
+ * @route   POST /api/compliance/projects/:projectRef/functions
+ * @desc    Deploy a function to a project
+ * @access  Private
+ */
+router.post('/projects/:projectRef/functions', authenticate, complianceController.deployFunction.bind(complianceController));
+
+/**
+ * @route   POST /api/compliance/fix/mfa/:projectRef
+ * @desc    Enable MFA for a project
+ * @access  Private
+ */
+router.post('/fix/mfa/:projectRef', authenticate, complianceController.enableMFA.bind(complianceController));
+
+/**
+ * @route   POST /api/compliance/fix/rls/:projectRef
+ * @desc    Enable RLS for a project
+ * @access  Private
+ */
+router.post('/fix/rls/:projectRef', authenticate, complianceController.enableRLS.bind(complianceController));
+
+/**
+ * @route   POST /api/compliance/fix/pitr/:projectRef
+ * @desc    Enable PITR for a project
+ * @access  Private
+ */
+router.post('/fix/pitr/:projectRef', authenticate, complianceController.enablePITR.bind(complianceController));
+
 export default router;

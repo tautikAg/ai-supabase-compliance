@@ -9,21 +9,38 @@ export class ComplianceController {
   async checkCredentials(req: Request, res: Response): Promise<Response> {
     try {
       const credentials: SupabaseCredentials = req.body;
+      console.log('Received credentials request:', {
+        url: credentials.url,
+        serviceKeyLength: credentials.serviceKey?.length || 0
+      });
+
       const supabaseService = new SupabaseService(credentials);
+      console.log('Initialized SupabaseService');
 
       // Test connection by trying to list users
+      console.log('Testing connection with MFA check...');
       await supabaseService.checkMFA();
+      console.log('MFA check completed successfully');
 
       // Store the service instance in the app
       req.app.set('supabaseService', supabaseService);
+      console.log('Service instance stored in app');
 
       return res.status(200).json({
         message: 'Credentials verified successfully',
+        timestamp: new Date().toISOString()
       });
-    } catch (error) {
+    } catch (error: unknown) {
+      console.error('Credentials verification failed:', {
+        name: error instanceof Error ? error.name : 'Unknown error',
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
+      });
+
       return res.status(401).json({
         error: 'Invalid credentials',
         details: error instanceof Error ? error.message : 'Unknown error',
+        timestamp: new Date().toISOString()
       });
     }
   }
@@ -91,12 +108,25 @@ export class ComplianceController {
    */
   async checkPITR(req: Request, res: Response): Promise<Response> {
     try {
-      const result = await req.supabaseService!.checkPITR();
+      if (!req.supabaseService) {
+        return res.status(401).json({
+          error: 'Unauthorized',
+          details: 'No Supabase service instance found'
+        });
+      }
+
+      const result = await req.supabaseService.checkPITR();
       return res.status(200).json(result);
     } catch (error) {
+      if (error instanceof Error) {
+        return res.status(400).json({
+          error: 'PITR check failed',
+          details: error.message
+        });
+      }
       return res.status(500).json({
-        error: 'Failed to check PITR status',
-        details: error instanceof Error ? error.message : 'Unknown error',
+        error: 'PITR check failed',
+        details: 'An unexpected error occurred'
       });
     }
   }
@@ -159,6 +189,206 @@ export class ComplianceController {
       return res.status(500).json({
         error: 'Failed to fix compliance issues',
         details: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  }
+
+  /**
+   * Set Supabase Management API key
+   */
+  async setManagementApiKey(req: Request, res: Response): Promise<Response> {
+    try {
+      const { managementApiKey } = req.body;
+      
+      if (!managementApiKey) {
+        return res.status(400).json({
+          error: 'Management API key is required'
+        });
+      }
+
+      if (!req.supabaseService) {
+        return res.status(401).json({
+          error: 'Unauthorized',
+          details: 'No Supabase service instance found'
+        });
+      }
+
+      req.supabaseService.setManagementApiKey(managementApiKey);
+
+      return res.status(200).json({
+        message: 'Management API key set successfully'
+      });
+    } catch (error) {
+      return res.status(500).json({
+        error: 'Failed to set management API key',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
+
+  /**
+   * List Supabase projects
+   */
+  async listProjects(req: Request, res: Response): Promise<Response> {
+    try {
+      if (!req.supabaseService) {
+        return res.status(401).json({
+          error: 'Unauthorized',
+          details: 'No Supabase service instance found'
+        });
+      }
+
+      const projects = await req.supabaseService.listProjects();
+      return res.status(200).json(projects);
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('Management API key not configured')) {
+        return res.status(400).json({
+          error: 'Management API key required',
+          details: 'Please set the Management API key before listing projects'
+        });
+      }
+      return res.status(500).json({
+        error: 'Failed to list projects',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
+
+  /**
+   * List functions for a project
+   */
+  async listFunctions(req: Request, res: Response): Promise<Response> {
+    try {
+      const { projectRef } = req.params;
+      
+      if (!projectRef) {
+        return res.status(400).json({
+          error: 'Project reference is required'
+        });
+      }
+
+      if (!req.supabaseService) {
+        return res.status(401).json({
+          error: 'Unauthorized',
+          details: 'No Supabase service instance found'
+        });
+      }
+
+      const functions = await req.supabaseService.listFunctions(projectRef);
+      return res.status(200).json(functions);
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('Management API key not configured')) {
+        return res.status(400).json({
+          error: 'Management API key required',
+          details: 'Please set the Management API key before listing functions'
+        });
+      }
+      return res.status(500).json({
+        error: 'Failed to list functions',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
+
+  /**
+   * Deploy a function to a project
+   */
+  async deployFunction(req: Request, res: Response): Promise<Response> {
+    try {
+      const { projectRef } = req.params;
+      const { name, code } = req.body;
+      
+      if (!projectRef || !name || !code) {
+        return res.status(400).json({
+          error: 'Project reference, function name, and code are required'
+        });
+      }
+
+      if (!req.supabaseService) {
+        return res.status(401).json({
+          error: 'Unauthorized',
+          details: 'No Supabase service instance found'
+        });
+      }
+
+      const result = await req.supabaseService.deployFunction(projectRef, name, code);
+      return res.status(200).json(result);
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('Management API key not configured')) {
+        return res.status(400).json({
+          error: 'Management API key required',
+          details: 'Please set the Management API key before deploying functions'
+        });
+      }
+      return res.status(500).json({
+        error: 'Failed to deploy function',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
+
+  async enableMFA(req: Request, res: Response): Promise<Response> {
+    try {
+      const { projectRef } = req.params;
+      if (!projectRef) {
+        return res.status(400).json({
+          error: 'Project reference is required'
+        });
+      }
+
+      await req.supabaseService!.enableMFA(projectRef);
+      return res.status(200).json({
+        message: 'MFA enabled successfully'
+      });
+    } catch (error) {
+      console.error('Failed to enable MFA:', error);
+      return res.status(500).json({
+        error: 'Failed to enable MFA',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
+
+  async enableRLS(req: Request, res: Response): Promise<Response> {
+    try {
+      const { projectRef } = req.params;
+      if (!projectRef) {
+        return res.status(400).json({
+          error: 'Project reference is required'
+        });
+      }
+
+      await req.supabaseService!.enableRLS(projectRef);
+      return res.status(200).json({
+        message: 'RLS enabled successfully'
+      });
+    } catch (error) {
+      console.error('Failed to enable RLS:', error);
+      return res.status(500).json({
+        error: 'Failed to enable RLS',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
+
+  async enablePITR(req: Request, res: Response): Promise<Response> {
+    try {
+      const { projectRef } = req.params;
+      if (!projectRef) {
+        return res.status(400).json({
+          error: 'Project reference is required'
+        });
+      }
+
+      await req.supabaseService!.enablePITR(projectRef);
+      return res.status(200).json({
+        message: 'PITR enabled successfully'
+      });
+    } catch (error) {
+      console.error('Failed to enable PITR:', error);
+      return res.status(500).json({
+        error: 'Failed to enable PITR',
+        details: error instanceof Error ? error.message : 'Unknown error'
       });
     }
   }

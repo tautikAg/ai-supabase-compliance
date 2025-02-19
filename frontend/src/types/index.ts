@@ -62,4 +62,9 @@ export interface SidebarItem {
 export interface Credentials {
   url: string;
   key: string;
+}
+
+export interface SupabaseManagementConfig {
+  managementApiKey: string;
+  projectRef: string;
 } 
