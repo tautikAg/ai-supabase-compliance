@@ -41,11 +41,11 @@ export function ComplianceChart({ className }: ComplianceChartProps) {
     datasets: [
       {
         data: [
-          [report?.mfa.status, report?.rls.status, report?.pitr.status].filter(
-            (status) => status === 'pass'
+          [report?.mfa.status === 'pass', report?.rls.compliant, report?.pitr.status === 'pass'].filter(
+            (status) => status === true
           ).length || 0,
-          [report?.mfa.status, report?.rls.status, report?.pitr.status].filter(
-            (status) => status === 'fail'
+          [report?.mfa.status === 'pass', report?.rls.compliant, report?.pitr.status === 'pass'].filter(
+            (status) => status === false
           ).length || 0,
         ],
         backgroundColor: ['rgb(34, 197, 94)', 'rgb(239, 68, 68)'],
