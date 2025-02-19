@@ -4,9 +4,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ComplianceReport } from '@/types';
 import { APIService } from '@/lib/api';
 import { Shield, Key, Clock, AlertTriangle } from 'lucide-react';
+import { LoadingSpinner } from '@/components/ui/loading-spinner';
 
 export function ComplianceStats() {
   const [report, setReport] = useState<ComplianceReport | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchReport = async () => {
@@ -15,6 +17,8 @@ export function ComplianceStats() {
         setReport(data);
       } catch (error) {
         console.error('Failed to fetch compliance report:', error);
+      } finally {
+        setLoading(false);
       }
     };
 
@@ -26,7 +30,7 @@ export function ComplianceStats() {
       title: 'MFA Status',
       value: report?.mfa.status === 'pass' ? 'Compliant' : 'Non-Compliant',
       icon: Key,
-      description: report?.mfa.details || 'Loading...',
+      description: report?.mfa.details || 'NA',
       className: report?.mfa.status === 'pass' ? 'text-green-500' : 'text-red-500',
     },
     {
@@ -40,7 +44,7 @@ export function ComplianceStats() {
       title: 'PITR Status',
       value: report?.pitr.status === 'pass' ? 'Compliant' : 'Non-Compliant',
       icon: Clock,
-      description: report?.pitr.details || 'Loading...',
+      description: report?.pitr.details || 'NA',
       className: report?.pitr.status === 'pass' ? 'text-green-500' : 'text-red-500',
     },
     {
@@ -61,10 +65,19 @@ export function ComplianceStats() {
             <stat.icon className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              <span className={stat.className}>{stat.value}</span>
-            </div>
-            <p className="text-xs text-muted-foreground">{stat.description}</p>
+            {loading ? (
+              <div className="flex flex-col items-center justify-center space-y-2">
+                <LoadingSpinner size={20} />
+                <p className="text-xs text-muted-foreground">NA</p>
+              </div>
+            ) : (
+              <>
+                <div className="text-2xl font-bold">
+                  <span className={stat.className}>{stat.value}</span>
+                </div>
+                <p className="text-xs text-muted-foreground">{stat.description}</p>
+              </>
+            )}
           </CardContent>
         </Card>
       ))}

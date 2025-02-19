@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
 import { PITRStatus } from '@/types';
 import { APIService } from '@/lib/api';
+import { LoadingCard, LoadingSpinner } from '@/components/ui/loading-spinner';
 
 export default function PITRPage() {
   const [status, setStatus] = useState<PITRStatus | null>(null);
@@ -77,10 +78,10 @@ export default function PITRPage() {
       <div className="flex-1 space-y-4 p-8 pt-6">
         <h2 className="text-3xl font-bold tracking-tight">PITR Status</h2>
         <Card>
-          <CardHeader>
-            <CardTitle>Loading...</CardTitle>
-            <CardDescription>Fetching Point in Time Recovery status</CardDescription>
-          </CardHeader>
+          <LoadingCard 
+            title="Loading PITR Status" 
+            description="Fetching Point in Time Recovery status" 
+          />
         </Card>
       </div>
     );
@@ -114,7 +115,14 @@ export default function PITRPage() {
                 onClick={handleSubmitManagementKey} 
                 disabled={submitting || !managementApiKey}
               >
-                {submitting ? 'Setting key...' : 'Submit'}
+                {submitting ? (
+                  <>
+                    <LoadingSpinner className="mr-2" size={16} />
+                    Setting key...
+                  </>
+                ) : (
+                  'Submit'
+                )}
               </Button>
             </div>
           </CardContent>
