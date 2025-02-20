@@ -6,6 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { RLSStatus } from '@/types';
 import { APIService } from '@/lib/api';
+import { LoadingCard } from '@/components/ui/loading-spinner';
 
 export default function RLSPage() {
   const [status, setStatus] = useState<RLSStatus | null>(null);
@@ -31,10 +32,10 @@ export default function RLSPage() {
       <div className="flex-1 space-y-4 p-8 pt-6">
         <h2 className="text-3xl font-bold tracking-tight">RLS Status</h2>
         <Card>
-          <CardHeader>
-            <CardTitle>Loading...</CardTitle>
-            <CardDescription>Fetching Row Level Security status</CardDescription>
-          </CardHeader>
+          <LoadingCard 
+            title="Loading RLS Status" 
+            description="Fetching Row Level Security status" 
+          />
         </Card>
       </div>
     );

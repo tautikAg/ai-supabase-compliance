@@ -6,6 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { MFAStatus } from '@/types';
 import { APIService } from '@/lib/api';
+import { LoadingCard } from '@/components/ui/loading-spinner';
 
 export default function MFAPage() {
   const [status, setStatus] = useState<MFAStatus | null>(null);
@@ -31,10 +32,10 @@ export default function MFAPage() {
       <div className="flex-1 space-y-4 p-8 pt-6">
         <h2 className="text-3xl font-bold tracking-tight">MFA Status</h2>
         <Card>
-          <CardHeader>
-            <CardTitle>Loading...</CardTitle>
-            <CardDescription>Fetching MFA status for all users</CardDescription>
-          </CardHeader>
+          <LoadingCard 
+            title="Loading MFA Status" 
+            description="Fetching MFA status for all users" 
+          />
         </Card>
       </div>
     );

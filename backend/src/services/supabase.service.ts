@@ -5,171 +5,206 @@ import {
   RLSCheckResult,
   PITRCheckResult,
   ComplianceReport,
+  ComplianceStatus,
 } from '../types';
+import { SQL_COMMANDS } from '../constants/sql-commands';
+import { complianceLogger } from '../utils/logger';
+
+interface TableRecord {
+  table_name: string;
+  has_rls: boolean;
+  policies: Array<{
+    name: string;
+    command: string;
+    roles: string[];
+  }>;
+}
+
+interface ProjectRecord {
+  project_id: string;
+  project_name: string;
+  pitr_enabled: boolean;
+  retention_period: string | null;
+}
 
 export class SupabaseService {
   private client: SupabaseClient;
   private serviceKey: string;
+  private managementApiKey: string;
+  private url: string;
 
   constructor(credentials: SupabaseCredentials) {
-    this.client = createClient(credentials.url, credentials.serviceKey);
+    this.url = credentials.url;
     this.serviceKey = credentials.serviceKey;
+    this.client = createClient(this.url, this.serviceKey);
+    complianceLogger.mfa('Initialized SupabaseService', { url: this.url });
+    this.managementApiKey = '';
   }
 
   async checkMFA(): Promise<MFACheckResult> {
     try {
+      complianceLogger.mfa('Starting MFA compliance check');
       const { data: users, error } = await this.client.auth.admin.listUsers();
+      
+      if (error) {
+        complianceLogger.error('Failed to fetch users for MFA check', error);
+        throw error;
+      }
 
-      if (error) throw error;
-
-      const usersWithMFAStatus = users.users.map((user) => ({
+      const usersWithMFAStatus = users.users.map(user => ({
         id: user.id,
-        email: user.email || '',
-        hasMFA: user.factors ? user.factors.length > 0 : false,
+        email: user.email || 'no-email',
+        hasMFA: Boolean(user.app_metadata?.mfa_enabled)
       }));
 
-      const allHaveMFA = usersWithMFAStatus.every((user) => user.hasMFA);
-
-      return {
-        status: allHaveMFA ? 'pass' : 'fail',
-        details: allHaveMFA ? 'All users have MFA enabled' : 'Some users do not have MFA enabled',
+      const allEnabled = usersWithMFAStatus.every(user => user.hasMFA);
+      const status: ComplianceStatus = allEnabled ? 'pass' : 'fail';
+      
+      const result: MFACheckResult = {
+        status,
+        details: allEnabled 
+          ? 'All users have MFA enabled' 
+          : `${usersWithMFAStatus.filter(u => !u.hasMFA).length} users do not have MFA enabled`,
         users: usersWithMFAStatus,
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toISOString()
       };
+
+      complianceLogger.mfa('MFA check completed', result);
+      return result;
     } catch (error) {
-      throw new Error(`Failed to check MFA status: ${error}`);
+      complianceLogger.error('MFA check failed', error as Error);
+      throw error;
     }
   }
 
   async checkRLS(): Promise<RLSCheckResult> {
-    console.log('Starting RLS check in SupabaseService');
     try {
-      console.log('Calling get_rls_status RPC');
-      const { data: tables, error } = await this.client.rpc('get_rls_status');
-
+      complianceLogger.rls('Starting RLS compliance check');
+      const { data, error } = await this.client
+        .rpc('get_all_tables');
+      console.log('Tables data:', data);
       if (error) {
-        console.error('RPC call failed:', error);
+        complianceLogger.error('Failed to fetch tables for RLS check', error as Error);
         throw error;
       }
 
-      console.log('Raw tables data:', tables);
+      if (!data || !Array.isArray(data)) {
+        complianceLogger.error('Invalid response format from get_all_tables', new Error('Invalid response format'));
+        throw new Error('Invalid response format from get_all_tables');
+      }
 
-      const tablesWithRLSStatus = tables.map((table: any) => ({
+      const tablesWithStatus = data.map((table) => ({
         name: table.table_name,
-        hasRLS: table.rls_enabled,
+        hasRLS: table.has_rls,
+        policies: Array.isArray(table.policies) ? table.policies : []
       }));
 
-      console.log('Processed tables data:', tablesWithRLSStatus);
-
-      const allHaveRLS = tablesWithRLSStatus.every((table: any) => table.hasRLS);
-      console.log('All tables have RLS:', allHaveRLS);
-
-      return {
-        status: allHaveRLS ? 'pass' : 'fail',
-        details: allHaveRLS ? 'All tables have RLS enabled' : 'Some tables do not have RLS enabled',
-        tables: tablesWithRLSStatus,
-        timestamp: new Date().toISOString(),
+      const allEnabled = tablesWithStatus.every(table => table.hasRLS);
+      const status: ComplianceStatus = allEnabled ? 'pass' : 'fail';
+      
+      const result: RLSCheckResult = {
+        status,
+        details: allEnabled 
+          ? 'All tables have RLS enabled' 
+          : `${tablesWithStatus.filter(t => !t.hasRLS).length} tables do not have RLS enabled`,
+        tables: tablesWithStatus,
+        timestamp: new Date().toISOString()
       };
+
+      complianceLogger.rls('RLS check completed', result);
+      return result;
     } catch (error) {
-      console.error('Error in checkRLS:', error);
-      throw new Error(`Failed to check RLS status: ${error}`);
+      complianceLogger.error('RLS check failed', error as Error);
+      throw error;
     }
   }
 
   async checkPITR(): Promise<PITRCheckResult> {
-    console.log('Starting PITR check');
     try {
-      // Use the stored service key
-      const apiKey = process.env.API_KEY;
-      console.log('Using API key for Supabase Management API');
-
-      console.log('Fetching projects from Supabase Management API');
-      // Step 1: Retrieve project IDs
-      const projectsResponse = await fetch('https://api.supabase.com/v1/projects', {
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!projectsResponse.ok) {
-        throw new Error(`Failed to fetch projects: ${projectsResponse.statusText}`);
+      complianceLogger.pitr('Starting PITR compliance check');
+      
+      // First check if we have management API key
+      if (!this.managementApiKey) {
+        throw new Error('Management API key is required for PITR check');
       }
 
-      const projects = await projectsResponse.json();
-      console.log('Retrieved projects:', projects);
-
-      // Step 2: Check PITR status for each project
-      const projectStatuses = await Promise.all(
-        projects.map(async (project: { id: string; name: string }) => {
-          console.log(`Checking PITR status for project ${project.name}`);
-          const backupResponse = await fetch(
-            `https://api.supabase.com/v1/projects/${project.id}/database/backups`,
-            {
-              headers: {
-                Authorization: `Bearer ${apiKey}`,
-                'Content-Type': 'application/json',
-              },
-            }
-          );
-
-          if (!backupResponse.ok) {
-            throw new Error(
-              `Failed to fetch backup details for project ${project.name}: ${backupResponse.statusText}`
+      // Get projects using management API
+      const projects = await this.listProjects();
+      
+      const projectsWithStatus = await Promise.all(
+        projects.map(async (project) => {
+          try {
+            const response = await fetch(
+              `https://api.supabase.com/v1/projects/${project.id}/database/backups`,
+              {
+                headers: this.getManagementHeaders(),
+              }
             );
+
+            if (!response.ok) {
+              throw new Error(`Failed to fetch backup details for project ${project.name}`);
+            }
+
+            const backupDetails = await response.json();
+            
+            return {
+              id: project.id,
+              name: project.name,
+              hasPITR: backupDetails.pitr_enabled || false,
+              retentionPeriod: backupDetails.pitr_retention_days 
+                ? `${backupDetails.pitr_retention_days} days` 
+                : null
+            };
+          } catch (error) {
+            complianceLogger.error(`Failed to check PITR for project ${project.name}`, error as Error);
+            return {
+              id: project.id,
+              name: project.name,
+              hasPITR: false,
+              retentionPeriod: null
+            };
           }
-
-          const backupDetails = await backupResponse.json();
-          console.log(`Backup details for ${project.name}:`, backupDetails);
-
-          return {
-            id: project.id,
-            name: project.name,
-            hasPITR: backupDetails.pitr_enabled,
-            retentionPeriod: backupDetails.pitr_retention_days ? `${backupDetails.pitr_retention_days} days` : undefined,
-            lastBackup: backupDetails.last_backup_time,
-            storageUsed: backupDetails.storage_usage ? `${backupDetails.storage_usage} GB` : undefined
-          };
         })
       );
 
-      console.log('All project PITR statuses:', projectStatuses);
-
-      const allHavePITR = projectStatuses.every((project) => project.hasPITR);
-
-      return {
-        status: allHavePITR ? 'pass' : 'fail',
-        details: allHavePITR
-          ? 'All projects have PITR enabled'
-          : 'Some projects do not have PITR enabled',
-        projects: projectStatuses,
-        timestamp: new Date().toISOString(),
+      const allEnabled = projectsWithStatus.every(project => project.hasPITR);
+      const status: ComplianceStatus = allEnabled ? 'pass' : 'fail';
+      
+      const result: PITRCheckResult = {
+        status,
+        details: allEnabled 
+          ? 'All projects have PITR enabled' 
+          : `${projectsWithStatus.filter(p => !p.hasPITR).length} projects do not have PITR enabled`,
+        projects: projectsWithStatus,
+        timestamp: new Date().toISOString()
       };
+
+      complianceLogger.pitr('PITR check completed', result);
+      return result;
     } catch (error) {
-      console.error('Error in checkPITR:', error);
-      throw new Error(`Failed to check PITR status: ${error}`);
+      complianceLogger.error('PITR check failed', error as Error);
+      throw error;
     }
   }
 
   async generateComplianceReport(): Promise<ComplianceReport> {
-    const [mfaResult, rlsResult, pitrResult] = await Promise.all([
-      this.checkMFA(),
-      this.checkRLS(),
-      this.checkPITR(),
-    ]);
+    try {
+      const [mfaResult, rlsResult, pitrResult] = await Promise.all([
+        this.checkMFA(),
+        this.checkRLS(),
+        this.checkPITR()
+      ]);
 
-    const overallStatus =
-      mfaResult.status === 'pass' && rlsResult.status === 'pass' && pitrResult.status === 'pass'
-        ? 'pass'
-        : 'fail';
-
-    return {
-      mfa: mfaResult,
-      rls: rlsResult,
-      pitr: pitrResult,
-      overallStatus,
-      generatedAt: new Date().toISOString(),
-    };
+      return {
+        mfa: mfaResult,
+        rls: rlsResult,
+        pitr: pitrResult,
+        timestamp: new Date().toISOString()
+      };
+    } catch (error) {
+      complianceLogger.error('Failed to generate compliance report', error as Error);
+      throw error;
+    }
   }
 
   // Methods to fix compliance issues
@@ -260,6 +295,237 @@ export class SupabaseService {
     } catch (error) {
       console.error('Error in PITR operation:', error);
       throw new Error(`PITR operation failed: ${error instanceof Error ? error.message : 'Unknown error'}. Note: PITR requires a Pro/Enterprise plan and must be enabled from the Supabase dashboard.`);
+    }
+  }
+
+  setManagementApiKey(key: string): void {
+    if (!key) {
+      throw new Error('Management API key is required');
+    }
+    this.managementApiKey = key;
+  }
+
+  private getManagementHeaders(): HeadersInit {
+    if (!this.managementApiKey) {
+      throw new Error('Management API key not configured. Please set it first.');
+    }
+    return {
+      'Authorization': `Bearer ${this.managementApiKey}`,
+      'Content-Type': 'application/json'
+    };
+  }
+
+  async listProjects(): Promise<Array<{ id: string; name: string; ref: string }>> {
+    try {
+      if (!this.managementApiKey) {
+        throw new Error('Management API key not configured. Please set it first.');
+      }
+
+      console.log('Fetching projects from Supabase Management API');
+      const projectsResponse = await fetch('https://api.supabase.com/v1/projects', {
+        headers: this.getManagementHeaders(),
+      });
+      console.log('Projects response:', projectsResponse);
+
+      if (!projectsResponse.ok) {
+        throw new Error(`Failed to fetch projects: ${projectsResponse.statusText}`);
+      }
+
+      const projects = await projectsResponse.json();
+      return projects.map((project: any) => ({
+        id: project.id,
+        name: project.name,
+        ref: project.ref
+      }));
+    } catch (error) {
+      console.error('Error fetching projects:', error);
+      throw error;
+    }
+  }
+
+  async listFunctions(projectRef: string): Promise<any[]> {
+    try {
+      if (!this.managementApiKey) {
+        throw new Error('Management API key not configured. Please set it first.');
+      }
+
+      const response = await fetch(
+        `https://api.supabase.com/v1/projects/${projectRef}/functions`,
+        {
+          headers: this.getManagementHeaders(),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch functions: ${response.statusText}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('Error fetching functions:', error);
+      throw error;
+    }
+  }
+
+  async deployFunction(projectRef: string, name: string, code: string): Promise<any> {
+    try {
+      if (!this.managementApiKey) {
+        throw new Error('Management API key not configured. Please set it first.');
+      }
+
+      const response = await fetch(
+        `https://api.supabase.com/v1/projects/${projectRef}/functions`,
+        {
+          method: 'POST',
+          headers: this.getManagementHeaders(),
+          body: JSON.stringify({
+            name,
+            code,
+            verify_jwt: true
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Failed to deploy function: ${response.statusText}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('Error deploying function:', error);
+      throw error;
+    }
+  }
+
+  async executeSQL(projectRef: string, query: string): Promise<any> {
+    try {
+      if (!this.managementApiKey) {
+        throw new Error('Management API key not configured. Please set it first.');
+      }
+
+      console.log('Executing SQL:', query);
+      console.log('Project Ref:', projectRef);
+      
+      const response = await fetch(
+        `https://api.supabase.com/v1/projects/${projectRef}/database/query`,
+        {
+          method: 'POST',
+          headers: this.getManagementHeaders(),
+          body: JSON.stringify({ query }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.text();
+        throw new Error(`Failed to execute SQL: ${errorData}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('Error executing SQL:', error);
+      throw error;
+    }
+  }
+
+  async enableMFA(projectRef: string): Promise<void> {
+    try {
+      await this.executeSQL(projectRef, SQL_COMMANDS.ENABLE_MFA_FOR_USER);
+      await this.executeSQL(
+        projectRef,
+        `DO $$ 
+        DECLARE
+          user_record RECORD;
+        BEGIN
+          FOR user_record IN SELECT id FROM auth.users
+          LOOP
+            PERFORM enable_mfa_for_user(user_record.id);
+          END LOOP;
+        END;
+        $$ LANGUAGE plpgsql;`
+      );
+    } catch (error) {
+      console.error('Error enabling MFA:', error);
+      throw error;
+    }
+  }
+
+  async enableRLS(projectRef: string): Promise<void> {
+    try {
+      await this.executeSQL(projectRef, SQL_COMMANDS.GET_ALL_TABLES);
+      await this.executeSQL(projectRef, SQL_COMMANDS.ENABLE_RLS_FOR_TABLE);
+      await this.executeSQL(
+        projectRef,
+        `DO $$ 
+        DECLARE
+          table_record RECORD;
+        BEGIN
+          FOR table_record IN SELECT table_name FROM get_all_tables()
+          LOOP
+            PERFORM enable_rls_for_table(table_record.table_name);
+            
+            -- Create default policy
+            EXECUTE format(
+              'CREATE POLICY "Enable access for authenticated users" ON %I
+               FOR ALL
+               TO authenticated
+               USING (true)
+               WITH CHECK (true)',
+              table_record.table_name
+            );
+          END LOOP;
+        END;
+        $$ LANGUAGE plpgsql;`
+      );
+    } catch (error) {
+      console.error('Error enabling RLS:', error);
+      throw error;
+    }
+  }
+
+  async enablePITR(projectRef: string): Promise<void> {
+    try {
+      if (!this.managementApiKey) {
+        throw new Error('Management API key not configured. Please set it first.');
+      }
+
+      const response = await fetch(
+        `https://api.supabase.com/v1/projects/${projectRef}/pitr`,
+        {
+          method: 'POST',
+          headers: this.getManagementHeaders(),
+          body: JSON.stringify({
+            enabled: true,
+            days_retention: 7
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Failed to enable PITR: ${response.statusText}`);
+      }
+    } catch (error) {
+      console.error('Error enabling PITR:', error);
+      throw error;
+    }
+  }
+
+  async runComplianceCheck(): Promise<ComplianceReport> {
+    try {
+      const mfa = await this.checkMFA();
+      const rls = await this.checkRLS();
+      const pitr = await this.checkPITR();
+
+      const report: ComplianceReport = {
+        mfa,
+        rls,
+        pitr,
+        timestamp: new Date().toISOString()
+      };
+
+      return report;
+    } catch (error) {
+      complianceLogger.error('Failed to run compliance check', error as Error);
+      throw error;
     }
   }
 }

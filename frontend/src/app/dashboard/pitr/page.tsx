@@ -4,37 +4,71 @@ import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { useToast } from '@/components/ui/use-toast';
 import { PITRStatus } from '@/types';
 import { APIService } from '@/lib/api';
+import { LoadingCard, LoadingSpinner } from '@/components/ui/loading-spinner';
 
 export default function PITRPage() {
   const [status, setStatus] = useState<PITRStatus | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showKeyInput, setShowKeyInput] = useState(false);
+  const [managementKey, setManagementKey] = useState('');
+  const { toast } = useToast();
 
   useEffect(() => {
-    const fetchPITRStatus = async () => {
-      try {
-        const data = await APIService.checkPITR();
-        setStatus(data);
-      } catch (error) {
-        console.error('Failed to fetch PITR status:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
+    // Initialize API service with localStorage data
+    APIService.initializeFromLocalStorage();
     fetchPITRStatus();
   }, []);
+
+  useEffect(() => {
+    // Only show key input if no management key is present
+    setShowKeyInput(!APIService.hasManagementKey());
+  }, []);
+
+  const fetchPITRStatus = async () => {
+    try {
+      const data = await APIService.checkPITR();
+      setStatus(data);
+    } catch (error) {
+      console.error('Failed to fetch PITR status:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSubmitManagementKey = async () => {
+    try {
+      await APIService.setManagementApiKey(managementKey);
+      setShowKeyInput(false);
+      // Refresh PITR status after setting the key
+      await fetchPITRStatus();
+      toast({
+        title: 'Success',
+        description: 'Management API key has been set successfully',
+      });
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Failed to set management API key',
+      });
+    }
+  };
 
   if (loading) {
     return (
       <div className="flex-1 space-y-4 p-8 pt-6">
         <h2 className="text-3xl font-bold tracking-tight">PITR Status</h2>
         <Card>
-          <CardHeader>
-            <CardTitle>Loading...</CardTitle>
-            <CardDescription>Fetching Point in Time Recovery status</CardDescription>
-          </CardHeader>
+          <LoadingCard 
+            title="Loading PITR Status" 
+            description="Fetching Point in Time Recovery status" 
+          />
         </Card>
       </div>
     );
@@ -100,6 +134,28 @@ export default function PITRPage() {
           </div>
         </CardContent>
       </Card>
+
+      {showKeyInput && (
+        <Card className="mt-4">
+          <CardHeader>
+            <CardTitle>Management API Key Required</CardTitle>
+            <CardDescription>
+              Please provide your Supabase Management API key to check PITR status
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex gap-4">
+              <Input
+                type="password"
+                placeholder="Enter Management API Key"
+                value={managementKey}
+                onChange={(e) => setManagementKey(e.target.value)}
+              />
+              <Button onClick={handleSubmitManagementKey}>Save Key</Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 } 

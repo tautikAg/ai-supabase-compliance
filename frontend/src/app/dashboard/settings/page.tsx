@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,8 +13,38 @@ export default function SettingsPage() {
   const { toast } = useToast();
   const { logout } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [managementApiKey, setManagementApiKey] = useState('');
   const credentials = typeof window !== 'undefined' ? 
     JSON.parse(localStorage.getItem('credentials') || '{}') : {};
+
+  useEffect(() => {
+    // Load saved management API key
+    const savedKey = localStorage.getItem('managementApiKey');
+    if (savedKey) {
+      setManagementApiKey(savedKey);
+      APIService.setManagementConfig({ managementApiKey: savedKey, projectRef: '' });
+    }
+  }, []);
+
+  const handleManagementApiKeyChange = async () => {
+    try {
+      setLoading(true);
+      await APIService.setManagementApiKey(managementApiKey);
+      localStorage.setItem('managementApiKey', managementApiKey);
+      toast({
+        title: 'Success',
+        description: 'Management API key updated successfully',
+      });
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Failed to update management API key',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleLogout = () => {
     if (confirm('Are you sure you want to log out?')) {
@@ -67,6 +97,36 @@ export default function SettingsPage() {
               disabled
               type="password"
             />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Management API Settings</CardTitle>
+          <CardDescription>Configure your Supabase Management API access</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="managementApiKey">Management API Key</Label>
+            <div className="flex space-x-2">
+              <Input
+                id="managementApiKey"
+                value={managementApiKey}
+                onChange={(e) => setManagementApiKey(e.target.value)}
+                type="password"
+                placeholder="Enter your Management API key"
+              />
+              <Button 
+                onClick={handleManagementApiKeyChange}
+                disabled={loading}
+              >
+                Save
+              </Button>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Required for PITR checks and certain fix operations. Get this from your Supabase dashboard.
+            </p>
           </div>
         </CardContent>
       </Card>
