@@ -4,6 +4,13 @@
 
 The Supabase Compliance Checker is a comprehensive tool designed to validate your Supabase project's configuration against industry security best practices. It runs a series of security checks on your project's settings and provides detailed reports, along with automated remediation options and AI-powered assistance.
 
+
+## Live Deployments
+- **Loom:** [Watch the video](https://www.loom.com/share/f87499bad06647d4acf276566acdb88e?sid=0551301e-b001-4ad9-9e18-4edf69549d36)
+- **GitHub:** [View the repository](https://github.com/tautikAg/ai-supabase-compliance)
+- **Frontend:** [Visit the frontend](https://ai-supabase-compliance.vercel.app/)
+- **Backend API:** [Check the backend health](https://ai-supabase-compliance.fly.dev/health)
+
 ## Features
 
 ### 1. Authentication
@@ -18,7 +25,6 @@ The Supabase Compliance Checker is a comprehensive tool designed to validate you
 - **Row Level Security (RLS) Check:**
   - Scans all tables in your database to verify if RLS is enabled.
   - Lists each table along with its compliance status.
-  - Provides detailed evidence (e.g., number of tables not compliant, any missing policies) and timestamps for the check.
 
 - **Point-In-Time Recovery (PITR) Check:**
   - Evaluates whether PITR is enabled for all projects associated with your Supabase account.
@@ -48,10 +54,6 @@ The Supabase Compliance Checker is a comprehensive tool designed to validate you
 ### Prerequisites
 - [Node.js](https://nodejs.org/) v14 or higher
 - A package manager (npm/yarn)
-- A Supabase Project with the following credentials:
-  - `SUPABASE_URL`
-  - `SUPABASE_SERVICE_KEY`
-  - `SUPABASE_MANAGEMENT_API_KEY` (for PITR checks) -- Provide this in frontend
 - A Google API key for AI Assistance (`GOOGLE_API_KEY`)
 
 ### Environment Variables
@@ -94,12 +96,12 @@ NEXT_PUBLIC_API_URL=http://localhost:3001/api
 
 - **Backend:** Run in development mode:
    ```bash
-   npm run dev --prefix backend
+   npm run dev
    ```
 
 - **Frontend:** Run in development mode:
    ```bash
-   npm run dev --prefix frontend
+   npm run dev 
    ```
 
 ## Usage
