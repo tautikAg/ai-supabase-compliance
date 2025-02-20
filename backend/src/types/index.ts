@@ -59,7 +59,8 @@ export interface ComplianceReport {
   mfa: MFACheckResult;
   rls: RLSCheckResult;
   pitr: PITRCheckResult;
-  timestamp: string;
+  overallStatus: 'pass' | 'fail';
+  generatedAt: string;
 }
 
 export interface FixOptions {

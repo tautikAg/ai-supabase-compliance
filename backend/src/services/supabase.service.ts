@@ -10,22 +10,6 @@ import {
 import { SQL_COMMANDS } from '../constants/sql-commands';
 import { complianceLogger } from '../utils/logger';
 
-interface TableRecord {
-  table_name: string;
-  has_rls: boolean;
-  policies: Array<{
-    name: string;
-    command: string;
-    roles: string[];
-  }>;
-}
-
-interface ProjectRecord {
-  project_id: string;
-  project_name: string;
-  pitr_enabled: boolean;
-  retention_period: string | null;
-}
 
 export class SupabaseService {
   private client: SupabaseClient;
@@ -81,7 +65,7 @@ export class SupabaseService {
     try {
       complianceLogger.rls('Starting RLS compliance check');
       const { data, error } = await this.client
-        .rpc('get_all_tables');
+        .rpc('get_rls_status');
       console.log('Tables data:', data);
       if (error) {
         complianceLogger.error('Failed to fetch tables for RLS check', error as Error);
@@ -89,14 +73,14 @@ export class SupabaseService {
       }
 
       if (!data || !Array.isArray(data)) {
-        complianceLogger.error('Invalid response format from get_all_tables', new Error('Invalid response format'));
-        throw new Error('Invalid response format from get_all_tables');
+        complianceLogger.error('Invalid response format from get_rls_status', new Error('Invalid response format'));
+        throw new Error('Invalid response format from get_rls_status');
       }
 
       const tablesWithStatus = data.map((table) => ({
         name: table.table_name,
-        hasRLS: table.has_rls,
-        policies: Array.isArray(table.policies) ? table.policies : []
+        hasRLS: table.rls_enabled,
+        policies: [] // Since we don't have policies in the response yet
       }));
 
       const allEnabled = tablesWithStatus.every(table => table.hasRLS);
@@ -189,17 +173,38 @@ export class SupabaseService {
 
   async generateComplianceReport(): Promise<ComplianceReport> {
     try {
-      const [mfaResult, rlsResult, pitrResult] = await Promise.all([
+      // Run MFA and RLS checks in parallel
+      const [mfaResult, rlsResult] = await Promise.all([
         this.checkMFA(),
-        this.checkRLS(),
-        this.checkPITR()
+        this.checkRLS()
       ]);
+
+      // Try PITR check, but handle failure gracefully
+      let pitrResult: PITRCheckResult;
+      try {
+        pitrResult = await this.checkPITR();
+      } catch (error) {
+        if (error instanceof Error && error.message.includes('Management API key')) {
+          pitrResult = {
+            status: 'fail',
+            details: 'Management API key is required for PITR check',
+            projects: [],
+            timestamp: new Date().toISOString()
+          };
+        } else {
+          throw error;
+        }
+      }
+
+      // Calculate overall status
+      const overallStatus = (mfaResult.status === 'pass' && rlsResult.status === 'pass' && pitrResult.status === 'pass') ? 'pass' : 'fail';
 
       return {
         mfa: mfaResult,
         rls: rlsResult,
         pitr: pitrResult,
-        timestamp: new Date().toISOString()
+        overallStatus,
+        generatedAt: new Date().toISOString()
       };
     } catch (error) {
       complianceLogger.error('Failed to generate compliance report', error as Error);
@@ -515,11 +520,15 @@ export class SupabaseService {
       const rls = await this.checkRLS();
       const pitr = await this.checkPITR();
 
+      // Calculate overall status
+      const overallStatus = (mfa.status === 'pass' && rls.status === 'pass' && pitr.status === 'pass') ? 'pass' : 'fail';
+
       const report: ComplianceReport = {
         mfa,
         rls,
         pitr,
-        timestamp: new Date().toISOString()
+        overallStatus,
+        generatedAt: new Date().toISOString()
       };
 
       return report;
