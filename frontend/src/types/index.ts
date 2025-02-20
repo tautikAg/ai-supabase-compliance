@@ -17,15 +17,22 @@ export interface MFAStatus {
     email: string;
     hasMFA: boolean;
   }>;
+  timestamp: string;
 }
 
 export interface RLSStatus {
-  compliant: boolean;
+  status: 'pass' | 'fail';
+  details: string;
   tables: Array<{
     name: string;
     hasRLS: boolean;
-    policies?: string[];
+    policies: Array<{
+      name: string;
+      command: string;
+      roles: string[];
+    }>;
   }>;
+  timestamp: string;
 }
 
 export interface PITRStatus {
@@ -35,6 +42,7 @@ export interface PITRStatus {
     id: string;
     name: string;
     hasPITR: boolean;
+    retentionPeriod: string | null;
   }>;
   timestamp: string;
 }

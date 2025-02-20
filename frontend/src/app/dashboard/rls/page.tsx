@@ -66,13 +66,11 @@ export default function RLSPage() {
         <CardContent>
           <div className="space-y-4">
             <div className="flex items-center space-x-4">
-              <Badge variant={status.compliant ? 'success' : 'destructive'}>
-                {status.compliant ? 'COMPLIANT' : 'NON-COMPLIANT'}
+              <Badge variant={status.status === 'pass' ? 'success' : 'destructive'}>
+                {status.status === 'pass' ? 'PASS' : 'FAIL'}
               </Badge>
               <span className="text-sm text-muted-foreground">
-                {status.compliant 
-                  ? 'All tables have RLS enabled' 
-                  : 'Some tables are missing RLS policies'}
+                {status.details}
               </span>
             </div>
             <Table>
@@ -97,7 +95,7 @@ export default function RLSPage() {
                         <ul className="list-disc list-inside">
                           {table.policies.map((policy, index) => (
                             <li key={index} className="text-sm">
-                              {policy}
+                              {policy.name}
                             </li>
                           ))}
                         </ul>

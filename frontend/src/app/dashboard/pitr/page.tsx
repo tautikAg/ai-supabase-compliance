@@ -25,17 +25,23 @@ export default function PITRPage() {
     fetchPITRStatus();
   }, []);
 
-  useEffect(() => {
-    // Only show key input if no management key is present
-    setShowKeyInput(!APIService.hasManagementKey());
-  }, []);
-
   const fetchPITRStatus = async () => {
     try {
       const data = await APIService.checkPITR();
       setStatus(data);
+      setShowKeyInput(false);
     } catch (error) {
       console.error('Failed to fetch PITR status:', error);
+      if (error instanceof Error && 
+          (error.message === 'MANAGEMENT_API_KEY_REQUIRED' || 
+           error.message.includes('Management API key not configured'))) {
+        setShowKeyInput(true);
+      }
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Failed to fetch PITR status. Please check your management API key.',
+      });
     } finally {
       setLoading(false);
     }
@@ -45,6 +51,7 @@ export default function PITRPage() {
     try {
       await APIService.setManagementApiKey(managementKey);
       setShowKeyInput(false);
+      setManagementKey('');
       // Refresh PITR status after setting the key
       await fetchPITRStatus();
       toast({
@@ -52,10 +59,11 @@ export default function PITRPage() {
         description: 'Management API key has been set successfully',
       });
     } catch (error) {
+      console.error('Error setting management API key:', error);
       toast({
         variant: 'destructive',
         title: 'Error',
-        description: 'Failed to set management API key',
+        description: error instanceof Error ? error.message : 'Failed to set management API key',
       });
     }
   };
@@ -84,6 +92,27 @@ export default function PITRPage() {
             <CardDescription>Failed to load PITR status</CardDescription>
           </CardHeader>
         </Card>
+        {showKeyInput && (
+          <Card className="mt-4">
+            <CardHeader>
+              <CardTitle>Management API Key Required</CardTitle>
+              <CardDescription>
+                Please provide your Supabase Management API key to check PITR status
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex gap-4">
+                <Input
+                  type="password"
+                  placeholder="Enter Management API Key"
+                  value={managementKey}
+                  onChange={(e) => setManagementKey(e.target.value)}
+                />
+                <Button onClick={handleSubmitManagementKey}>Save Key</Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
     );
   }

@@ -35,6 +35,32 @@ export function ComplianceOverview({ className }: ComplianceOverviewProps) {
         setReport(data);
       } catch (error) {
         console.error('Failed to fetch compliance report:', error);
+        // Create a partial report with available data
+        if (error instanceof Error && error.message.includes('Management API key')) {
+          const partialReport: ComplianceReport = {
+            mfa: await APIService.checkMFA().catch(() => ({ 
+              status: 'fail' as const, 
+              details: 'Unable to check MFA status',
+              users: [],
+              timestamp: new Date().toISOString()
+            })),
+            rls: await APIService.checkRLS().catch(() => ({ 
+              status: 'fail' as const,
+              details: 'Unable to check RLS status',
+              tables: [],
+              timestamp: new Date().toISOString()
+            })),
+            pitr: {
+              status: 'fail' as const,
+              details: 'Management API key required for PITR check',
+              timestamp: new Date().toISOString(),
+              projects: []
+            },
+            overallStatus: 'fail' as const,
+            generatedAt: new Date().toISOString()
+          };
+          setReport(partialReport);
+        }
       } finally {
         setLoading(false);
       }
@@ -88,7 +114,7 @@ export function ComplianceOverview({ className }: ComplianceOverviewProps) {
               <TableCell className="font-medium">MFA</TableCell>
               <TableCell>
                 <Badge variant={report.mfa.status === 'pass' ? 'success' : 'destructive'}>
-                  {report.mfa.status.toUpperCase()}
+                  {report.mfa.status === 'pass' ? 'PASS' : 'FAIL'}
                 </Badge>
               </TableCell>
               <TableCell>{report.mfa.details}</TableCell>
@@ -97,18 +123,18 @@ export function ComplianceOverview({ className }: ComplianceOverviewProps) {
             <TableRow>
               <TableCell className="font-medium">RLS</TableCell>
               <TableCell>
-                <Badge variant={report.rls.compliant ? 'success' : 'destructive'}>
-                  {report.rls.compliant ? 'Compliant' : 'Non-Compliant'}
+                <Badge variant={report.rls.status === 'pass' ? 'success' : 'destructive'}>
+                  {report.rls.status === 'pass' ? 'PASS' : 'FAIL'}
                 </Badge>
               </TableCell>
-              <TableCell>{report.rls.compliant ? 'Compliant' : 'Non-Compliant'}</TableCell>
+              <TableCell>{report.rls.details}</TableCell>
               <TableCell>{new Date(report.rls.timestamp).toLocaleString()}</TableCell>
             </TableRow>
             <TableRow>
               <TableCell className="font-medium">PITR</TableCell>
               <TableCell>
                 <Badge variant={report.pitr.status === 'pass' ? 'success' : 'destructive'}>
-                  {report.pitr.status.toUpperCase()}
+                  {report.pitr.status === 'pass' ? 'PASS' : 'FAIL'}
                 </Badge>
               </TableCell>
               <TableCell>{report.pitr.details}</TableCell>

@@ -11,23 +11,24 @@ export const SQL_COMMANDS = {
     AS $$
     BEGIN
       RETURN QUERY
-      SELECT
-        tables.table_name::text,
-        tables.rls_enabled::boolean,
+      SELECT 
+        t.tablename AS table_name,
+        has_rls(t.tablename::regclass) AS has_rls,
         COALESCE(
           jsonb_agg(
             jsonb_build_object(
-              'name', policies.policyname,
-              'command', policies.cmd,
-              'roles', policies.roles
+              'name', p.policyname,
+              'command', p.cmd,
+              'roles', p.roles
             )
-          ) FILTER (WHERE policies.policyname IS NOT NULL),
+          ) FILTER (WHERE p.policyname IS NOT NULL),
           '[]'::jsonb
-        ) as policies
-      FROM pg_tables tables
-      LEFT JOIN pg_policies policies ON tables.tablename = policies.tablename
-      WHERE tables.schemaname = 'public'
-      GROUP BY tables.table_name, tables.rls_enabled;
+        ) AS policies
+      FROM pg_tables t
+      LEFT JOIN pg_policies p 
+        ON t.schemaname = p.schemaname AND t.tablename = p.tablename
+      WHERE t.schemaname = 'public'
+      GROUP BY t.tablename;
     EXCEPTION
       WHEN OTHERS THEN
         RAISE EXCEPTION 'Failed to get tables: %', SQLERRM;
@@ -45,9 +46,9 @@ export const SQL_COMMANDS = {
     AS $$
     BEGIN
       RETURN QUERY
-      SELECT
-        t.table_name::text,
-        t.rls_enabled::boolean
+      SELECT 
+        t.tablename AS table_name,
+        has_rls(t.tablename::regclass) AS rls_enabled
       FROM pg_tables t
       WHERE t.schemaname = 'public';
     EXCEPTION
@@ -63,15 +64,16 @@ export const SQL_COMMANDS = {
     SECURITY DEFINER
     AS $$
     BEGIN
-      -- Check if table exists
+      -- Check if the table exists in the public schema
       IF NOT EXISTS (
-        SELECT FROM pg_tables 
+        SELECT 1 FROM pg_tables 
         WHERE schemaname = 'public' 
-        AND tablename = target_table
+          AND tablename = target_table
       ) THEN
         RAISE EXCEPTION 'Table % does not exist in public schema', target_table;
       END IF;
 
+      -- Enable row level security on the table
       EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', target_table);
     EXCEPTION
       WHEN OTHERS THEN
@@ -126,7 +128,9 @@ export const SQL_COMMANDS = {
       total_tables int;
       rls_enabled_tables int;
     BEGIN
-      SELECT COUNT(*), COUNT(*) FILTER (WHERE rls_enabled)
+      SELECT 
+        COUNT(*),
+        COUNT(*) FILTER (WHERE has_rls(tablename::regclass))
       INTO total_tables, rls_enabled_tables
       FROM pg_tables
       WHERE schemaname = 'public';

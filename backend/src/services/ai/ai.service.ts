@@ -2,6 +2,9 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { complianceLogger } from '../../utils/logger';
 import { generatePrompt } from './prompts/base.prompt';
 
+import dotenv from 'dotenv';
+dotenv.config();
+
 export class AIService {
   private googleAI!: GoogleGenerativeAI;
   private model: any = null;

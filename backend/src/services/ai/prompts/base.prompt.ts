@@ -1,5 +1,3 @@
-import { SUPABASE_KNOWLEDGE } from './knowledge';
-
 interface SecurityContext {
   mfa?: { status: string };
   rls?: { compliant: boolean };
@@ -7,56 +5,74 @@ interface SecurityContext {
 }
 
 export const generatePrompt = (query: string, context?: SecurityContext): string => {
-  // Find relevant knowledge sections based on query keywords
-  const getRelevantKnowledge = (q: string) => {
-    const keywords = {
-      rls: ['rls', 'row', 'security', 'policy', 'policies'],
-      mfa: ['mfa', '2fa', 'factor', 'authentication'],
-      pitr: ['pitr', 'backup', 'recovery', 'restore']
-    };
+  return `You are a Supabase security expert. I'll help you understand and implement security features in simple terms.
 
-    const sections: string[] = [];
-    if (keywords.rls.some(k => q.toLowerCase().includes(k))) sections.push('rls');
-    if (keywords.mfa.some(k => q.toLowerCase().includes(k))) sections.push('mfa');
-    if (keywords.pitr.some(k => q.toLowerCase().includes(k))) sections.push('pitr');
-    
-    return sections.length ? sections : ['rls', 'mfa', 'pitr']; // Default to all if no matches
-  };
+Here's what you need to know about Supabase security features:
 
-  const relevantSections = getRelevantKnowledge(query);
-  const knowledgeBase = relevantSections.reduce((acc, section) => {
-    acc[section] = SUPABASE_KNOWLEDGE[section as keyof typeof SUPABASE_KNOWLEDGE];
-    return acc;
-  }, {} as any);
+1. Row Level Security (RLS):
+   - What it is: Controls which users can access which rows in your database tables
+   - How to enable: Run 'alter table "table_name" enable row level security;'
+   - Common policies:
+     * Let users read their own data: 'auth.uid() = user_id'
+     * Let users update their own data: 'auth.uid() = user_id'
+     * Let users delete their own data: 'auth.uid() = user_id'
+   - Tips:
+     * Always enable RLS on public tables
+     * Use user IDs to control access
+     * Keep policies simple and avoid complex joins
+     * Always specify who can do what (authenticated vs anonymous users)
 
-  return `You are a Supabase security expert. Use this knowledge to provide brief, actionable answers:
+2. Multi-Factor Authentication (MFA):
+   - What it is: Extra security layer beyond passwords
+   - How to implement:
+     * Let users set up MFA: 'supabase.auth.mfa.enroll()'
+     * Ask for MFA code: 'supabase.auth.mfa.challenge()'
+     * Check MFA code: 'supabase.auth.mfa.verify()'
+   - Tips:
+     * Use MFA for sensitive operations
+     * Have a backup way to sign in
+     * Keep MFA data secure
+     * Test MFA flows thoroughly
 
-KNOWLEDGE BASE:
-${JSON.stringify(knowledgeBase, null, 2)}
+3. Point-in-Time Recovery (PITR):
+   - What it is: Ability to restore your database to any point in the past
+   - Requirements:
+     * Pro plan or higher
+     * Small compute add-on
+     * Enough storage space
+   - Features:
+     * Restore up to 7 days back
+     * Automatic backups every 2 minutes
+     * Daily full backups
+   - Tips:
+     * Monitor your backup storage
+     * Test recovery regularly
+     * Document how to restore
+     * Set how long to keep backups
 
-${context ? `CURRENT STATUS:
-- MFA: ${context.mfa?.status || 'Unknown'}
-- RLS: ${context.rls?.compliant ? 'Enabled' : 'Disabled'}
-- PITR: ${context.pitr?.status || 'Unknown'}` : ''}
+${context ? `Current Status of Your Project:
+- MFA is ${context.mfa?.status || 'Unknown'}
+- RLS is ${context.rls?.compliant ? 'Enabled' : 'Disabled'}
+- PITR is ${context.pitr?.status || 'Unknown'}` : ''}
 
-QUERY: ${query}
+Your question: ${query}
 
-Provide a concise response with:
-1. Numbered action steps (max 3)
-2. Relevant code example
-3. One-line security note
+I'll provide:
+1. Simple steps to follow (maximum 3)
+2. A code example if needed
+3. A quick security tip
 
-Format as:
+Format:
 ## Steps
-1. [First step]
-2. [Second step]
-3. [Third step]
+1. [First step in simple terms]
+2. [Second step in simple terms]
+3. [Third step in simple terms]
 
 ## Example
 \`\`\`sql
-[Code example]
+[Simple code example if needed]
 \`\`\`
 
-## Security Note
-[Brief security implication]`;
+## Security Tip
+[One simple security tip]`;
 }; 

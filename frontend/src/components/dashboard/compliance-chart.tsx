@@ -37,14 +37,14 @@ export function ComplianceChart({ className }: ComplianceChartProps) {
   }, []);
 
   const data: ChartData<'pie'> = {
-    labels: ['Compliant', 'Non-Compliant'],
+    labels: ['Pass', 'Fail'],
     datasets: [
       {
         data: [
-          [report?.mfa.status === 'pass', report?.rls.compliant, report?.pitr.status === 'pass'].filter(
+          [report?.mfa.status === 'pass', report?.rls.status === 'pass', report?.pitr.status === 'pass'].filter(
             (status) => status === true
           ).length || 0,
-          [report?.mfa.status === 'pass', report?.rls.compliant, report?.pitr.status === 'pass'].filter(
+          [report?.mfa.status === 'pass', report?.rls.status === 'pass', report?.pitr.status === 'pass'].filter(
             (status) => status === false
           ).length || 0,
         ],

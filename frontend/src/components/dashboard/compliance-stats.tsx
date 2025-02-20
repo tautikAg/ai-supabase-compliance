@@ -17,6 +17,31 @@ export function ComplianceStats() {
         setReport(data);
       } catch (error) {
         console.error('Failed to fetch compliance report:', error);
+        // Create a partial report with available data
+        if (error instanceof Error && error.message.includes('Management API key')) {
+          const partialReport = {
+            mfa: await APIService.checkMFA().catch(() => ({ 
+              status: 'fail' as const, 
+              details: 'Unable to check MFA status',
+              timestamp: new Date().toISOString(),
+              users: []
+            })),
+            rls: await APIService.checkRLS().catch(() => ({ 
+              compliant: false,
+              timestamp: new Date().toISOString(),
+              tables: []
+            })),
+            pitr: {
+              status: 'fail' as const,
+              details: 'Management API key required for PITR check',
+              timestamp: new Date().toISOString(),
+              projects: []
+            },
+            overallStatus: 'fail' as const,
+            generatedAt: new Date().toISOString()
+          };
+          setReport(partialReport as ComplianceReport);
+        }
       } finally {
         setLoading(false);
       }
@@ -25,34 +50,44 @@ export function ComplianceStats() {
     fetchReport();
   }, []);
 
+  const getStatusColor = (status: string | boolean | undefined) => {
+    if (status === 'pass' || status === true) return 'text-green-500';
+    return 'text-red-500';
+  };
+
+  const getStatusText = (status: string | boolean | undefined) => {
+    if (status === 'pass' || status === true) return 'Compliant';
+    return 'Non-Compliant';
+  };
+
   const stats = [
     {
       title: 'MFA Status',
-      value: report?.mfa.status === 'pass' ? 'Compliant' : 'Non-Compliant',
+      value: getStatusText(report?.mfa.status),
       icon: Key,
       description: report?.mfa.details || 'NA',
-      className: report?.mfa.status === 'pass' ? 'text-green-500' : 'text-red-500',
+      className: getStatusColor(report?.mfa.status),
     },
     {
       title: 'RLS Status',
-      value: report?.rls.compliant ? 'Compliant' : 'Non-Compliant',
+      value: getStatusText(report?.rls.status),
       icon: Shield,
-      description: report?.rls.compliant ? 'Compliant' : 'Non-Compliant',
-      className: report?.rls.compliant ? 'text-green-500' : 'text-red-500',
+      description: report?.rls.details || 'Some tables are missing RLS',
+      className: getStatusColor(report?.rls.status),
     },
     {
       title: 'PITR Status',
-      value: report?.pitr.status === 'pass' ? 'Compliant' : 'Non-Compliant',
+      value: getStatusText(report?.pitr.status),
       icon: Clock,
       description: report?.pitr.details || 'NA',
-      className: report?.pitr.status === 'pass' ? 'text-green-500' : 'text-red-500',
+      className: getStatusColor(report?.pitr.status),
     },
     {
       title: 'Overall Status',
-      value: report?.overallStatus === 'pass' ? 'Compliant' : 'Non-Compliant',
+      value: getStatusText(report?.overallStatus),
       icon: AlertTriangle,
       description: 'Overall compliance status',
-      className: report?.overallStatus === 'pass' ? 'text-green-500' : 'text-red-500',
+      className: getStatusColor(report?.overallStatus),
     },
   ];
 

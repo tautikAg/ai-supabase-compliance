@@ -225,6 +225,14 @@ export default function FixPage() {
       setProjects(data);
     } catch (error) {
       console.error('Failed to fetch projects:', error);
+      if (error instanceof Error && error.message.includes('Management API key not configured')) {
+        setShowKeyInput(true);
+      }
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Failed to fetch projects. Please check your management API key.',
+      });
     } finally {
       setLoading(false);
     }
@@ -234,6 +242,7 @@ export default function FixPage() {
     try {
       await APIService.setManagementApiKey(managementKey);
       setShowKeyInput(false);
+      setManagementKey('');
       // Refresh projects after setting the key
       await fetchProjects();
       toast({
@@ -241,10 +250,11 @@ export default function FixPage() {
         description: 'Management API key has been set successfully',
       });
     } catch (error) {
+      console.error('Error setting management API key:', error);
       toast({
         variant: 'destructive',
         title: 'Error',
-        description: 'Failed to set management API key',
+        description: error instanceof Error ? error.message : 'Failed to set management API key',
       });
     }
   };

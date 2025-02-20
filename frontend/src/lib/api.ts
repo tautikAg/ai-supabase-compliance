@@ -212,11 +212,12 @@ export class APIService {
           ...this.getHeaders(),
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ key }),
+        body: JSON.stringify({ managementApiKey: key }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to set management API key');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to set management API key');
       }
 
       this.setManagementConfig({ managementApiKey: key, projectRef: '' });
