@@ -244,8 +244,7 @@ export class SupabaseService {
   async enablePITRForProject(projectId: string): Promise<void> {
     try {
       // Check if management API key is available
-      const managementApiKey = process.env.SUPABASE_MANAGEMENT_API_KEY;
-      if (!managementApiKey) {
+      if (!this.managementApiKey) {
         throw new Error('Supabase Management API key not found. PITR requires a Management API key and a Pro/Enterprise plan.');
       }
 
@@ -254,7 +253,7 @@ export class SupabaseService {
         `https://api.supabase.com/v1/projects/${projectId}/database/backups`,
         {
           headers: {
-            'Authorization': `Bearer ${managementApiKey}`,
+            'Authorization': `Bearer ${this.managementApiKey}`,
             'Content-Type': 'application/json'
           }
         }
@@ -281,7 +280,7 @@ export class SupabaseService {
         {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${managementApiKey}`,
+            'Authorization': `Bearer ${this.managementApiKey}`,
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({

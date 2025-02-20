@@ -23,6 +23,7 @@ export class APIService {
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${this.credentials.serviceKey}`,
+      'X-Supabase-URL': this.credentials.url,
     };
 
     // Add management API key if available

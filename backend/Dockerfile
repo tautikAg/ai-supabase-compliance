@@ -1,54 +1,45 @@
 # syntax = docker/dockerfile:1
 
-FROM node:20-slim AS base
+# Adjust NODE_VERSION as desired
+ARG NODE_VERSION=20.18.0
+FROM node:${NODE_VERSION}-slim AS base
 
-# Install dependencies only when needed
-FROM base AS deps
+LABEL fly_launch_runtime="Node.js"
+
+# Node.js app lives here
 WORKDIR /app
 
-# Install dependencies needed for node-gyp on slim image
+# Set production environment
+ENV NODE_ENV="development"
+
+
+# Throw-away build stage to reduce size of final image
+FROM base AS build
+
+# Install packages needed to build node modules
 RUN apt-get update -qq && \
     apt-get install --no-install-recommends -y build-essential node-gyp pkg-config python-is-python3
 
-# Install dependencies based on the preferred package manager
-COPY package.json package-lock.json ./
-RUN npm ci
+# Install node modules
+COPY package-lock.json package.json ./
+RUN npm ci --include=dev
 
-# Rebuild the source code only when needed
-FROM base AS builder
-WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
+# Copy application code
 COPY . .
 
-# Next.js collects completely anonymous telemetry data about general usage.
-# Learn more here: https://nextjs.org/telemetry
-# Uncomment the following line in case you want to disable telemetry during the build.
-ENV NEXT_TELEMETRY_DISABLED 1
-
+# Build application
 RUN npm run build
 
-# Production image, copy all the files and run next
-FROM base AS runner
-WORKDIR /app
+# Remove development dependencies
+RUN npm prune --omit=dev
 
-ENV NODE_ENV production
-ENV NEXT_TELEMETRY_DISABLED 1
 
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
+# Final stage for app image
+FROM base
 
-COPY --from=builder /app/public ./public
+# Copy built application
+COPY --from=build /app /app
 
-# Automatically leverage output traces to reduce image size
-# https://nextjs.org/docs/advanced-features/output-file-tracing
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
-
-USER nextjs
-
-EXPOSE 3000
-
-ENV PORT 3000
-ENV HOSTNAME "0.0.0.0"
-
-CMD ["node", "server.js"]
+# Start the server by default, this can be overwritten at runtime
+EXPOSE 3001
+CMD [ "npm", "run", "start" ]

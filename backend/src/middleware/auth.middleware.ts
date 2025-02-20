@@ -16,9 +16,14 @@ declare global {
 export const authenticate = (req: Request, res: Response, next: NextFunction) => {
   const authHeader = req.headers.authorization;
   const managementApiKey = req.headers['x-management-key'] as string;
+  const supabaseUrl = req.headers['x-supabase-url'] as string;
 
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'No authorization token provided' });
+  }
+
+  if (!supabaseUrl) {
+    return res.status(401).json({ error: 'Supabase URL is required' });
   }
 
   const serviceKey = authHeader.split(' ')[1];
@@ -26,7 +31,7 @@ export const authenticate = (req: Request, res: Response, next: NextFunction) =>
   try {
     // Create a new SupabaseService instance with the service key
     const supabaseService = new SupabaseService({
-      url: process.env.SUPABASE_URL || '',
+      url: supabaseUrl,
       serviceKey: serviceKey,
     });
 
